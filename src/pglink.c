@@ -379,6 +379,7 @@ extend_insert_query(ch_http_insert_state *state, TupleTableSlot *slot)
 			case JSONOID:
 			case NAMEOID:
 			case BITOID:
+			case UUIDOID:
 			case BYTEAOID:
 			{
 				char   *str = NULL;
