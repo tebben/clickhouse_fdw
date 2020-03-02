@@ -454,6 +454,22 @@ column_append(clickhouse::ColumnRef col, Datum val, Oid valtype, bool isnull)
 
 			break;
 		}
+		case UUIDOID:
+		{
+			char *s = TextDatumGetCString(val);
+
+			switch (col->Type()->GetCode())
+			{
+				case Type::Code::UUID:
+					col->As<ColumnUUID>()->Append(s);
+					break;
+				default:
+					throw std::runtime_error("unexpected column "
+							"type for UUID: " + col->Type()->GetName());
+			}
+
+			break;
+		}
 		case DATEOID:
 		{
 			Timestamp t = date2timestamp_no_overflow(DatumGetDateADT(val));
