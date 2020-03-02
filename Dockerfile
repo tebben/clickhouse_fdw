@@ -1,33 +1,17 @@
-ARG PG_VERSION
-FROM postgres:${PG_VERSION}-alpine
+FROM postgis/postgis:12-3.0-alpine as build
 
-ARG CHECK_CODE
-RUN if [ "${CHECK_CODE}" = "clang" ] ; then \
-	echo 'http://dl-3.alpinelinux.org/alpine/edge/main' > /etc/apk/repositories; \
-	apk --no-cache add clang-analyzer make musl-dev gcc g++ openssl-dev cmake curl-dev util-linux-dev; \
-	fi
+ENV VERSION 0.2.1
 
-RUN if [ "${CHECK_CODE}" = "false" ] ; then \
-	apk --no-cache add curl python3 gcc clang llvm g++ make musl-dev openssl-dev cmake curl-dev util-linux-dev git gdb sudo musl-dbg; \
-	sed -e 's/# %wheel ALL=(ALL) NOPASSWD: ALL/%wheel ALL=(ALL) NOPASSWD: ALL/g' -i /etc/sudoers; \
-	sed -e 's/^wheel:\(.*\)/wheel:\1,postgres/g' -i /etc/group; \
-	fi
+RUN apk --no-cache add curl python3 gcc g++ make musl-dev openssl-dev cmake curl-dev util-linux-dev;\
+    chmod a+rwx /usr/local/lib/postgresql && \
+    chmod a+rwx /usr/local/share/postgresql/extension && \
+    mkdir -p /usr/local/share/doc/postgresql/contrib && \
+    chmod a+rwx /usr/local/share/doc/postgresql/contrib
 
-ENV LANG=C.UTF-8 PGDATA=/pg/data CHECK_CODE=${CHECK_CODE}
+RUN wget -O fdw.zip -c https://github.com/tebben/clickhouse_fdw/archive/v$VERSION.zip && \
+    unzip fdw.zip && \
+    cd clickhouse_fdw-$VERSION && mkdir build && cd build && cmake .. && make && DESTDIR=/tmp/data make install
 
-RUN mkdir -p ${PGDATA} && \
-	mkdir /pg/src && \
-	mkdir -p /usr/local/lib/postgresql/bitcode && \
-	chown postgres:postgres ${PGDATA} && \
-	chmod a+rwx /usr/local/lib/postgresql && \
-	chmod a+rwx /usr/local/lib/postgresql/bitcode && \
-	chmod a+rwx /usr/local/share/postgresql/extension && \
-	mkdir -p /usr/local/share/doc/postgresql/contrib && \
-	chmod a+rwx /usr/local/share/doc/postgresql/contrib
-
-ADD . /pg/src
-RUN rm -rf /pg/src/build
-WORKDIR /pg/src
-RUN chmod -R go+rwX /pg/src
-USER postgres
-ENTRYPOINT PGDATA=${PGDATA} CHECK_CODE=${CHECK_CODE} bash run_tests.sh
+FROM postgis/postgis:12-3.0-alpine as install
+RUN apk --no-cache add libcurl 
+COPY --from=build /tmp/data/ /
