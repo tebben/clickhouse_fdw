@@ -2,6 +2,7 @@
 #include <endian.h>
 #include <cassert>
 #include <stdexcept>
+#include <inttypes.h>
 
 #include "clickhouse/columns/nullable.h"
 #include "clickhouse/columns/factory.h"
@@ -455,13 +456,29 @@ column_append(clickhouse::ColumnRef col, Datum val, Oid valtype, bool isnull)
 			break;
 		}
 		case UUIDOID:
-		{
-			char *s = TextDatumGetCString(val);
+		{		
+		 	int i;
+			uint64_t lower = 0, upper = 0;
+			pg_uuid_t *uuidp = DatumGetUUIDP(val);
+
+			for(i = 0; i <= 7; ++i)
+			{
+				lower <<= 8;
+				lower |= (uint64_t)uuidp->data[i];
+			}
+
+			for(i = 8; i <= 15; ++i)
+			{
+				upper <<= 8;
+				upper |= (uint64_t)uuidp->data[i];
+			}
+
+			UInt128 uuidValue = UInt128(lower, upper);
 
 			switch (col->Type()->GetCode())
 			{
-				case Type::Code::UUID:
-					col->As<ColumnUUID>()->Append(s);
+				case Type::Code::UUID:					
+					col->As<ColumnUUID>()->Append(uuidValue);					
 					break;
 				default:
 					throw std::runtime_error("unexpected column "
